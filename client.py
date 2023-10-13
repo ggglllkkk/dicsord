@@ -9,15 +9,12 @@ sock.connect((ip,port))
 
 sock.send(str.encode("0§glkglkglk"))
 
-def timer(i):
-    time.sleep(i)
-    return False
-
 a=True
-a=timer(5)
 
 while a:
     response=sock.recv(255)
+    if response!="":
+        print(response.decode('utf-8'))
 
 print("close")
 sock.close()

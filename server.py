@@ -12,7 +12,7 @@ class Client():
 
         print("client handler started:", self.addr)
         self.run()
-    
+
     def run(self):
         while self.isAlive:
             if self.toSend: client.send(self.toSend)
@@ -37,7 +37,7 @@ class Server():
         self.sendToIHM=sendToIHM
         self.clientAnswers={}
         self.commandsToExecute=commandsToExecute
-        self.messageToSend=str.encode("")
+        self.messageToSend=[]
 
         print("server started")
         self.run()
@@ -91,3 +91,8 @@ class Server():
             a=data[1]
         if int(a[0])==0 and (len(self.clientAnswers[clientOriginatingFrom])<2 or self.clientAnswers[clientOriginatingFrom][1]!=a[1]):
                 self.clientAnswers[clientOriginatingFrom].append(a[1])
+    
+    def sendMessage(self, message):
+        self.messageToSend.append(message)
+        time.sleep(0.05)
+        del self.messageToSend[0]

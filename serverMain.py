@@ -6,18 +6,6 @@ serverAnswer=queue.Queue()
 commandsToExecute=queue.Queue()
 portBefore=1234
 
-class Test():
-    def __init__(self, a, b, c):
-        self.a=a
-        self.b=b
-        self.c=c
-
-        self.run()
-    
-    def run(self):
-        while True:
-            self.b.put([0])
-
 def beforeMain():
     global serverThread, portBefore
     for widgets in clientsFrame.winfo_children():
@@ -33,13 +21,16 @@ def beforeMain():
         for k in a:
             tk.Label(clientsFrame, text=k).pack()
     
-    window.after(1, beforeMain)
+    window.after(10, beforeMain)
 
+def fa():
+    commandsToExecute.put('self.sendMessage("hihi; test")')
 
 window=tk.Tk()
 window.title="dicsord server"
 port=tk.StringVar(value=1234)
 portEntry=tk.Entry(window, textvariable=port).pack()
+button=tk.Button(window, text="send to all", command=fa).pack()
 clientsFrame=tk.Frame(window)
 clientsFrame.pack()
 beforeMain()
