@@ -6,7 +6,7 @@ build_exe_options = {
 
 target=Executable(
     script="server.py",
-    icon="discord.ico"
+    icon="data/discord.ico"
 )
 
 # On appelle la fonction setup

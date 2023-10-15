@@ -8,3 +8,7 @@ type{
 
 server->client
 [expediteur][message][heure]
+
+
+client logs
+[type][message][expediteur][heure]
