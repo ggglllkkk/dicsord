@@ -5,7 +5,7 @@ build_exe_options = {
 }
 
 target=Executable(
-    script="serverMain.py",
+    script="server.py",
     icon="discord.ico"
 )
 

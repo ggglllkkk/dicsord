@@ -1,0 +1,10 @@
+client->server:
+
+[type][message]
+type{
+    0: changer le pseudo
+    1: envoyer à tous
+}
+
+server->client
+[expediteur][message][heure]
