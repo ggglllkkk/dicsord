@@ -1,9 +1,14 @@
-import tkinter as tk
+import customtkinter as ctk
 
 a="bijour, je m'appelle gromile\n et j'aime les chaussettes"
 
-window=tk.Tk()
+window=ctk.CTk()
 
-texts=tk.Label(window, text=a).pack()
+def a():
+    texts.insert("end", "dafuq")
+
+texts=ctk.CTkTextbox(window)
+texts.pack()
+button=ctk.CTkButton(window, text="button", command=a).pack()
 
 window.mainloop()

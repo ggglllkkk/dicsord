@@ -19,6 +19,7 @@ class Client():
             if response:
                 a=response.decode("utf-8")
                 if a!="":
+                    print("message received :", a)
                     a=a.split("§")
                     a[0]=int(a[0])
                     print("message received :", a)
@@ -36,7 +37,7 @@ class Client():
             if not self.serverMessages["toClient"].empty():
                 b=self.serverMessages["toClient"].get_nowait()
                 c=b[0]+"§"+b[1]+"§"+str(time.time())
-                b=str.encode(c)
+                b=c.encode("utf-8")
                 self.client.send(b)
                 print("sending :", b)
             #print(self.serverMessages)
