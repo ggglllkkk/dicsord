@@ -2,6 +2,22 @@ import customtkinter as CTk
 import tkinter as Tk
 import threading, socket, queue, time
 
+isClientAlive=True
+
+def client(infos):
+    global isClientAlive
+    ip=infos[0]
+    port=infos[1]
+
+    sock=socket.socket(socket.AF_INET, sock.SOCK_STREAM)
+    sock.connect((ip, port))
+    
+    #while isClientAlive:
+
+
+
+
+"""
 toClient=["localhost", 1234, "glkglkglk", queue.Queue(), queue.Queue()]
 isClientAlive=True
 
@@ -18,7 +34,7 @@ def client(infos):
     print("launchong")
     sock=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ip,port))
-    sock.send(str.encode("0§"+pseudo))
+    #sock.send(str.encode("0§"+pseudo))
     while isClientAlive:
         if not threadingRecv:
             recvResponse=[]
@@ -27,29 +43,35 @@ def client(infos):
         if recvResponse:
             response=recvResponse[0]
         if response:
-            a=response[0].decode("utf-8")
+            a=response.decode("utf-8")
+            print(a, response, )
             received.put(a)
             threadingRecv=False
             if not response[1]:
                 isClientAlive=False
+            response=""
         if not toSend.empty():
             b=toSend.get()
-            b=pseudo+"§"+b+str(time.time())
+            #b="1"+pseudo+"§"+b+str(time.time())
+            b="1"+"§"+b+"§"+str(time.time())
             print("sending :", b)
             sock.send(b.encode("utf-8"))
         time.sleep(0.0001)
-    print("closing")
     sock.close()
+    print("closing")
     return False
 
 def recvListener(a, sock):
     print('waiting for new message')
     response=sock.recv(255)
     a.append(response)
+    print(response)
     if not response:
         print("server disconnected")
         a.append(False)
     else: a.append(True)
+    return False
+    print("wadahel")
 
 # [type][pseudo/IP][horodatage][contenu]
 
@@ -82,8 +104,9 @@ def fconnectCTkButton():
 
 def sendMessage():
     a=sendMessageValue.get().rstrip()
-    toClient[3].put(a)
-    print(a)
+    if a!="":
+        toClient[3].put(a)
+        print(a)
 
 def addNewLine(texte):
     messages.configure(state="normal")
@@ -139,4 +162,4 @@ thread.start()
 
 beforeMain()
 window.mainloop()
-isClientAlive=False
+isClientAlive=False"""

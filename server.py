@@ -1,7 +1,41 @@
 import tkinter as tk
 import threading, sys, socket, queue, time
 
-class Client():
+
+class Server():
+    def __init__(self, port):
+        self.port=port
+
+        self.sock=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.bind(("", self.port))
+        
+        print("starting server")
+        self.run()
+    
+    def run(self):
+        self.sock.listen(5)
+        self.clientListenerStarted=False
+        self.clientListenerAnswer=queue.Queue()
+        while True:
+            if not self.clientListenerStarted:
+                self.clientListenerStarted=True
+                threading._start_new_thread(self.clientListener, ())
+            elif not self.clientListenerAnswer.empty():
+                newClient=self.clientListenerAnswer.get()
+                print("new client connected:", newClient)
+                self.clientListenerStarted=False
+
+    def clientListener(self):
+        print("waiting for new client")
+        client, addr=self.sock.accept()
+        self.clientListenerAnswer.put((client, addr))
+        return False
+        print("hm")
+
+port=1234
+Server(port)
+
+"""class Client():
     def __init__(self, client, serverMessages):
         self.client=client[0]
         self.addr=client[1]
@@ -15,12 +49,16 @@ class Client():
     def run(self):
         response=None
         threadingRecv=False
+        recvResponse=[]
         while self.connectionAlive:
+            if recvResponse:
+                self.connectionAlive=recvResponse[0]
+                if self.connectionAlive: response=recvResponse[1] 
             if response:
                 a=response.decode("utf-8")
                 if a!="":
-                    print("message received :", a)
                     a=a.split("§")
+                    print(a)
                     a[0]=int(a[0])
                     print("message received :", a)
                     self.messageToDo(a)
@@ -29,36 +67,35 @@ class Client():
             if not threadingRecv:
                 recvResponse=[]
                 threading._start_new_thread(self.recvThread, (recvResponse,))
-                threadingRecv=True
-            if recvResponse:
-                response=recvResponse[0]
-                self.connectionAlive=recvResponse[1]
+                threadingRecv=True 
 
             if not self.serverMessages["toClient"].empty():
                 b=self.serverMessages["toClient"].get_nowait()
-                c=b[0]+"§"+b[1]+"§"+str(time.time())
+                print("b", b)
+                c=str(b[0])+"§"+"§".join(b[1])
                 b=c.encode("utf-8")
                 self.client.send(b)
                 print("sending :", b)
             #print(self.serverMessages)
+            time.sleep(0.0001)
     
     def recvThread(self, a):
         print("waiting for new message")
         response=self.client.recv(255)
-        a.append(response)
         if not response:
             print("client disconnected")
             a.append(False)
         else: a.append(True)
+        a.append(response)
         return False
 
     def messageToDo(self, a):
-        print(a)
+        print("message to do",a)
         time.sleep(0.1)
         if a[0]==0:
             self.serverMessages["pseudo"]=a[1]
         if a[0]==1:
-            self.serverMessages["toServ"].put(a[1])
+            self.serverMessages["toServ"].put(a[1:])
 
 
 
@@ -106,4 +143,4 @@ class Server():
 
 #port=int(input("Port ? : "))
 port=1234
-Server(port)
+Server(port)"""
