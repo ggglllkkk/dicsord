@@ -1,4 +1,4 @@
-import tkinter as tk
+import customtkinter as tk
 import threading, sys, socket, queue, time
 
 class Client():
@@ -49,8 +49,11 @@ class Client():
 
 
 class Server():
-    def __init__(self, port):
+    def __init__(self, port, clients, events, commands):
         self.port=port
+        self.clients=clients
+        self.events=events
+        self.commands=commands
         self.clientQueues=[]
         self.isAlive=True
 
@@ -66,26 +69,36 @@ class Server():
         self.clientListenerStarted=False
         self.clientListenerAnswer=queue.Queue()
         while self.isAlive:
+            if not self.commands.empty():
+                print("command received")
+                command=self.commands.get()
+                exec(command)
             if not self.clientListenerStarted:
                 self.clientListenerStarted=True
                 self.clientListenerAnswer=queue.Queue()
                 threading._start_new_thread(self.clientListener, ())
             elif not self.clientListenerAnswer.empty():
                 newClient=self.clientListenerAnswer.get()
-                self.clientQueues.append({"toClient":queue.Queue(),"toServer":queue.Queue()})
+                self.clientQueues.append({"toClient":queue.Queue(),"toServer":queue.Queue(), "pseudo":newClient[1]})
                 threading._start_new_thread(Client, (self.clientQueues[-1],newClient))
                 self.clientListenerStarted=False
             
+            b=[]
             for k in self.clientQueues:
                 if not k["toServer"].empty():
                     a=k["toServer"].get()
                     self.sendToClients(a)
+                b.append(k["pseudo"])
+            #print(b)
+            self.clients.put(b)
+            time.sleep(0.01)
                     
     def sendToClients(self, message):
         a="§".join(message)
-        print(a)
+        #print(a)
         for k in self.clientQueues:
             k["toClient"].put(a)
+        self.events.put(a)
 
     def clientListener(self):
         print("waiting for new client")
@@ -95,10 +108,92 @@ class Server():
 
     def close(self):
         self.isAlive=False
-        self.sock.shutdown(socket.SHUT_RDWR)
-        self.sock.close()
         print("server closed")
         sys.exit()
 
-port=1234
-Server(port)
+#Server(port)
+serverAlive=False
+serverStateList=["Launch Server", "Shutdown Server"]
+clientsList=queue.Queue()
+oldClientList=[]
+events=queue.Queue()
+commandsToServer=queue.Queue()
+
+def launchServer():
+    global serverAlive, thread
+    if not serverAlive: 
+        thread=threading.Thread(target=Server, args=(int(serverPort.get()), clientsList, events, commandsToServer))
+        thread.start()
+    else:
+        commandsToServer.put("self.close()")
+    serverAlive=not(serverAlive)
+    launchServerButton.configure(text=serverStateList[serverAlive])
+
+def sendCommand():
+    command=commandToSend.get()
+    print(command)
+
+def keyPressed(key):
+    if key.char=="\r" or key.char=="\n":
+        sendCommand()
+
+def writeNewLine(texte):
+    messages.configure(state="normal")
+    messages.insert("end", texte+"\n")
+    messages.configure(state="disabled")
+
+def beforeMain():
+    global oldClientList
+    if not clientsList.empty():
+        a=clientsList.get()
+        if a!=oldClientList:
+            print(a)
+            for widgets in clientsFrame.winfo_children():
+                widgets.destroy()
+            for k in range(len(a)):
+                b=tk.CTkLabel(clientsFrame, text=a[k]).grid(row=k, column=0)
+            oldClientList=a
+    if not events.empty():
+        a=events.get()
+        a=a.split("§")
+        mTime=time.localtime(int(a[2]))
+        c=f"{mTime.tm_mday}/{mTime.tm_mon} {mTime.tm_hour}:{mTime.tm_min}:{mTime.tm_sec}"
+        print(a)
+        b=f"<{c}>[{a[0]}] {a[1]}"
+        writeNewLine(b)
+
+    window.after(1, beforeMain)
+
+window=tk.CTk()
+window.title="Dicsord Server"
+window.geometry("800x800")
+
+window.rowconfigure(0, weight=1)
+window.columnconfigure(0, weight=1)
+optionsFrame = tk.CTkFrame(window)
+clientsFrame = tk.CTkFrame(window)
+MessagesFont=tk.CTkFont("Alef", 17)
+window.bind("<KeyRelease>", keyPressed)
+
+adress=tk.CTkLabel(optionsFrame, text="Server adress: ").grid(row=0, column=0)
+serverAdress=tk.CTkLabel(optionsFrame, text=str(socket.gethostbyname(socket.gethostname()))).grid(row=1, column=0)
+serverPort=tk.StringVar()
+serverPort.set(1234)
+serverPortLabel=tk.CTkLabel(optionsFrame, text="Server port: ").grid(row=2, column=0)
+serverPortEntry=tk.CTkEntry(optionsFrame, textvariable=serverPort).grid(row=3, column=0)
+launchServerButton=tk.CTkButton(optionsFrame, text=serverStateList[0], command=launchServer)
+launchServerButton.grid(row=4, column=0, pady=10)
+
+messageLogs="exemple de texte"
+messages = tk.CTkTextbox(window, state="disabled", font=MessagesFont)
+messages.grid(row=0, column=0, rowspan=2, sticky="nswe")
+
+commandToSend=tk.StringVar()
+sendCommandEntry= tk.CTkEntry(window, textvariable=commandToSend).grid(row=2, column=0, columnspan=2, sticky="we")
+sendCommandButton = tk.CTkButton(window, text="Send command", command=sendCommand).grid(row=2, column=2, sticky="we")
+
+optionsFrame.grid(row=0, column=2, sticky="nse")
+clientsFrame.grid(row=0, column=1, sticky="nse")
+beforeMain()
+window.mainloop()
+commandsToServer.put("self.close()")
