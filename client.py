@@ -43,12 +43,11 @@ def client(infos, messageToSend, messageToIHM):
 def serverReceiver(sock, message):
     print("waiting for new message")
     a=[]
-    response=sock.recv(255)
-    a.append(response)
-    if not response:
-        a.append(False)
-    else:
+    try: response=sock.recv(255)
+    except socket.error: a.append(False)
+    if a==[]: 
         a.append(True)
+        a.append(response)
     message.put(a)
     return False
 
@@ -69,6 +68,7 @@ def connectToServer():
     if not connected:
         thread=threading.Thread(target=client, args=((serverAdress.get(), int(serverPort.get()), userPseudo.get()),sendToServ, receivedFromServ))
         thread.start()
+        isClientAlive=True
     else:
         isClientAlive=False
     connected=not(connected)
@@ -102,7 +102,8 @@ def beforeMain():
 
 window=tk.CTk()
 window.geometry("850x800")
-window.title="dicsord"
+window.title("dicsord")
+#window.iconbitmap("data/dicsord.ico")
 window.resizable=(0,0)
 
 window.rowconfigure(0, weight=1)

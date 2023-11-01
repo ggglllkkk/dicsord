@@ -38,12 +38,11 @@ class Client():
     def clientReceiver(self):
         print("waiting for new message")
         a=[]
-        response=self.client.recv(255)
-        if not response:
-            a.append(False)
-        else:
+        try: response=self.client.recv(255)
+        except socket.error: a.append(False)
+        if a==[]: 
             a.append(True)
-        a.append(response)
+            a.append(response)
         self.clientReceived.put(a)
         return False
 
@@ -69,9 +68,11 @@ class Server():
         self.clientListenerStarted=False
         self.clientListenerAnswer=queue.Queue()
         while self.isAlive:
+            self.clientQueues.append({"toClient":queue.Queue(),"toServer":queue.Queue(), "pseudo":str(time.time())})
             if not self.commands.empty():
                 print("command received")
                 command=self.commands.get()
+                self.writeLogs("command received: "+command)
                 exec(command)
             if not self.clientListenerStarted:
                 self.clientListenerStarted=True
@@ -81,6 +82,7 @@ class Server():
                 newClient=self.clientListenerAnswer.get()
                 self.clientQueues.append({"toClient":queue.Queue(),"toServer":queue.Queue(), "pseudo":newClient[1]})
                 threading._start_new_thread(Client, (self.clientQueues[-1],newClient))
+                self.writeLogs("new client instance: "+str(newClient[1]))
                 self.clientListenerStarted=False
             
             b=[]
@@ -90,10 +92,11 @@ class Server():
                     self.sendToClients(a)
                 b.append(k["pseudo"])
             #print(b)
-            self.clients.put(b)
-            time.sleep(0.01)
+            self.clients.put_nowait(b)
+            time.sleep(0.1)
                     
     def sendToClients(self, message):
+        self.writeLogs(str(message))
         a="§".join(message)
         #print(a)
         for k in self.clientQueues:
@@ -102,6 +105,7 @@ class Server():
 
     def clientListener(self):
         print("waiting for new client")
+        self.writeLogs("waiting for new connection")
         client, addr=self.sock.accept()
         self.clientListenerAnswer.put((client, addr))
         return False
@@ -109,7 +113,13 @@ class Server():
     def close(self):
         self.isAlive=False
         print("server closed")
+        self.writeLogs("server closes")
         sys.exit()
+
+    def writeLogs(self, text):
+        mTime=time.localtime(time.time())
+        a=f"{mTime.tm_mday}/{mTime.tm_mon}/{mTime.tm_year} {mTime.tm_hour}:{mTime.tm_min}:{mTime.tm_sec}"
+        with open("serverLogs.txt", "a") as file: file.write(a+"// "+text+"\n")
 
 #Server(port)
 serverAlive=False
@@ -128,6 +138,9 @@ def launchServer():
         commandsToServer.put("self.close()")
     serverAlive=not(serverAlive)
     launchServerButton.configure(text=serverStateList[serverAlive])
+    mTime=time.localtime(time.time())
+    a=f"{mTime.tm_mday}/{mTime.tm_mon}/{mTime.tm_year} {mTime.tm_hour}:{mTime.tm_min}:{mTime.tm_sec}"
+    with open("serverLogs.txt", "a") as file: file.write(f"\n#### new server on port {serverPort.get()} the {a} ####\n")
 
 def sendCommand():
     command=commandToSend.get()
@@ -141,37 +154,43 @@ def writeNewLine(texte):
     messages.configure(state="normal")
     messages.insert("end", texte+"\n")
     messages.configure(state="disabled")
+    with open("serverLogs.txt", "a") as file: file.write(texte+"\n")
+
+def writeNewClient(texte):
+    clients.configure(state="normal")
+    clients.insert("end", texte+"\n")
+    clients.configure(state="disabled")
 
 def beforeMain():
     global oldClientList
     if not clientsList.empty():
-        a=clientsList.get()
+        a=clientsList.get_nowait()
         if a!=oldClientList:
             print(a)
-            for widgets in clientsFrame.winfo_children():
-                widgets.destroy()
-            for k in range(len(a)):
-                b=tk.CTkLabel(clientsFrame, text=a[k]).grid(row=k, column=0)
+            clients.delete("0.0")
+            for k in a:
+                writeNewClient(k)
             oldClientList=a
     if not events.empty():
-        a=events.get()
+        a=events.get_nowait()
         a=a.split("§")
         mTime=time.localtime(int(a[2]))
         c=f"{mTime.tm_mday}/{mTime.tm_mon} {mTime.tm_hour}:{mTime.tm_min}:{mTime.tm_sec}"
         print(a)
         b=f"<{c}>[{a[0]}] {a[1]}"
         writeNewLine(b)
+    #print(time.time())
 
     window.after(1, beforeMain)
 
 window=tk.CTk()
-window.title="Dicsord Server"
+window.title("Dicsord Server")
 window.geometry("800x800")
+window.iconbitmap("data/dicsord.ico")
 
 window.rowconfigure(0, weight=1)
 window.columnconfigure(0, weight=1)
 optionsFrame = tk.CTkFrame(window)
-clientsFrame = tk.CTkFrame(window)
 MessagesFont=tk.CTkFont("Alef", 17)
 window.bind("<KeyRelease>", keyPressed)
 
@@ -184,16 +203,16 @@ serverPortEntry=tk.CTkEntry(optionsFrame, textvariable=serverPort).grid(row=3, c
 launchServerButton=tk.CTkButton(optionsFrame, text=serverStateList[0], command=launchServer)
 launchServerButton.grid(row=4, column=0, pady=10)
 
-messageLogs="exemple de texte"
 messages = tk.CTkTextbox(window, state="disabled", font=MessagesFont)
 messages.grid(row=0, column=0, rowspan=2, sticky="nswe")
+clients = tk.CTkTextbox(window, state="disabled", font=MessagesFont)
+clients.grid(row=0, column=1, sticky="nse")
 
 commandToSend=tk.StringVar()
 sendCommandEntry= tk.CTkEntry(window, textvariable=commandToSend).grid(row=2, column=0, columnspan=2, sticky="we")
 sendCommandButton = tk.CTkButton(window, text="Send command", command=sendCommand).grid(row=2, column=2, sticky="we")
 
 optionsFrame.grid(row=0, column=2, sticky="nse")
-clientsFrame.grid(row=0, column=1, sticky="nse")
 beforeMain()
 window.mainloop()
 commandsToServer.put("self.close()")
