@@ -209,3 +209,31 @@
 #### new server on port 1234 the 26/10/2023 0:12:56 ####
 26/10/2023 0:12:56// command received: self.close()
 26/10/2023 0:12:56// server closes
+
+#### new server on port 5689 the 4/11/2023 22:35:13 ####
+4/11/2023 22:35:13// waiting for new connection
+4/11/2023 22:35:15// new client instance: ('127.0.0.1', 51409)
+4/11/2023 22:35:15// waiting for new connection
+4/11/2023 22:35:23// ['giga_nigga', 'wesh les potos', '1699133724']
+4/11/2023 22:35:24// ["('127.0.0.1', 51409)"]
+4/11/2023 22:35:24// ["('127.0.0.1', 51409)"]
+4/11/2023 22:35:24// ["('127.0.0.1', 51409)"]
+4/11/2023 22:35:24// ["('127.0.0.1', 51409)"]
+4/11/2023 22:35:24// ["('127.0.0.1', 51409)"]
+4/11/2023 22:35:34// command received: self.close()
+4/11/2023 22:35:34// server closes
+
+#### new server on port 1234 the 11/11/2023 18:42:1 ####
+11/11/2023 18:42:1// waiting for new connection
+11/11/2023 18:42:2// new client instance: ('127.0.0.1', 61116)
+11/11/2023 18:42:2// waiting for new connection
+
+#### new server on port 1234 the 11/11/2023 18:42:43 ####
+11/11/2023 18:42:43// waiting for new connection
+11/11/2023 18:42:45// new client instance: ('127.0.0.1', 61172)
+11/11/2023 18:42:45// waiting for new connection
+
+#### new server on port 1234 the 11/11/2023 18:43:14 ####
+11/11/2023 18:43:14// waiting for new connection
+11/11/2023 18:43:16// new client instance: ('127.0.0.1', 61211)
+11/11/2023 18:43:16// waiting for new connection

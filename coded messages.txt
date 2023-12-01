@@ -1,0 +1,17 @@
+## TO SERVER
+
+[type][message][time]
+
+types:
+0-change pseudo
+1-send message
+2-closing client
+
+
+## TO CLIENT
+[type][sender][message][time]
+
+types:
+0-pseudo list
+1-new message
+2-closing server
