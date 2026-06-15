@@ -1,197 +1,169 @@
-import customtkinter as tk
-import socket, threading, time
+import time
+import socket as sock
+import customtkinter as ctk
+from threading import Thread
+from netifaces import interfaces, ifaddresses
+from queue import Queue
+from re import compile
 
-class Client():
-    def __init__(self, queues, client, isAlive):
-        self.toServer=queues["toServer"]
-        self.toClient=queues["toClient"]
-        self.client=client
-        self.isServerAlive=isAlive
-        self.amAlive=[]
+PORT_REGEX=compile("^[0-9]{,5}$")
+UPS:float=10
 
-        self.run()
+newMessagesQueue:Queue=Queue()
+
+class Server:
+    def __init__(self):
+        self.connected:bool=False
+
+        self.connectedUsers:list[User]=[]
+        self.receivedMessagesQueue:Queue=Queue()
     
-    def run(self):
-        isWaitingForNewMessage=False
-        self.newMessages=[]
-        while self.isServerAlive==[] and self.amAlive==[]:
-            while self.newMessages!=[]:
-                a=self.newMessages.pop(0)
-                if int(a.split("§")[0])==2:
-                    self.amAlive.append([])
-                self.toServer.append(a)
-                isWaitingForNewMessage=False
-            if isWaitingForNewMessage==False:
-                isWaitingForNewMessage=True
-                threading._start_new_thread(self.newMessageListener, ())
-            while self.toClient!=[]:
-                a=self.toClient.pop(0).encode("utf-8")
-                try: self.client.send(a)
-                except socket.error: 
-                    print("an error occured during the data sending")
-                    self.toClient.append(a)
-        self.client.send(f"2§§§{time.time()}".encode("utf-8"))
-        self.client.close()
-        print("client closed")
-
-
-
-            
-    def newMessageListener(self):
-        print("waiting for new message")
-        try: 
-            response=self.client.recv(1023).decode("utf-8")
-            print(response)
-            self.newMessages.append(response)
-        except socket.error:
-            print("connection cutted")
-            self.amAlive.append([])
-
-
-
-class Server():
-    def __init__(self, port, commands, clientsList, messages, amIAlive):
-        self.commands=commands
-        self.clientsListToSend=clientsList
-        self.messages=messages
-        self.amIAlive=amIAlive
-        self.newClients=[]
-        self.clientQueues={}
-        self.clientsList={}
-
-        self.sock=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(("", int(port)))
-        self.sock.listen(5)
-
-        print("server started")
-        self.run()
-
-    def run(self):
-        isWaitingForNewConnection=False
-        nextClientID=0
-        self.isAlive=[]
-        while self.isAlive==[]:
-            if self.amIAlive!=[]:
-                self.isAlive=False
-            while self.newClients!=[]:
-                a=self.newClients.pop(0)
-                self.clientsList[nextClientID]={"socket":a[0], "address":a[1], "pseudo":a[1]}
-                self.clientQueues[nextClientID]={"toClient":[],"toServer":[]}
-                threading._start_new_thread(Client, (self.clientQueues[nextClientID],a[0],self.isAlive))
-                print(f"new client: id:{nextClientID}, address:{a[1]}")
-                nextClientID+=1
-                isWaitingForNewConnection=False
-            if isWaitingForNewConnection==False:
-                print("guhr")
-                isWaitingForNewConnection=True
-                threading._start_new_thread(self.connectionHandler, ())
-            self.clientQueuesHandler()
-        self.sock.close()
-        print("closing server")
-
-    def clientQueuesHandler(self):
-        for clientId, k in self.clientQueues.items():
-            while k["toServer"]!=[]:
-                a=k["toServer"].pop(0).split("§")
-                if int(a[0])==0:
-                    self.clientsList[clientId]["pseudo"]=a[1]
-                    for k in self.clientList.values():
-                        b=str({k["address"]:k["pseudo"]})
-                    sendAll(f"0§§[{b}]§{str(round(time.time()))}")
-                elif int(a[0])==1:
-                    b=f"1§{self.clientsList[clientId]['address']}§{'§'.join(a[1:])}"
-                    self.sendAll(b)
-                    print(b)
-
-
-    
-    def sendAll(self, message):
-        for k in self.clientQueues.values():
-            k["toClient"].append(message)
-
-
-
-    def connectionHandler(self):
-        print("waiting for new connection")
-        client, addr=self.sock.accept()
-        self.newClients.append((client, addr))
+    def update(self):
+        while not self.receivedMessagesQueue.empty():
+            currentMsg=self.receivedMessagesQueue.get()
+            if currentMsg[1]=="":
+                self.connectedUsers.remove(currentMsg[0])
+            else:
+                print(currentMsg[1])
+                newMessagesQueue.put(currentMsg[1])
         
+    
+    def toggleSocket(self):
+        if self.connected==False:
+            host=addressComboBox.get()
 
-def keyPressed(key):
-    if key.char=="\r" or key.char=="\n":
-        sendCommand()
+            port=portEntry.get()
+            if not PORT_REGEX.match(port): return False
+            if port=="": port=8888
+            else: port=int(port)
+            if port > 65365 or port <= 1024: return False
 
-    window.after(1, beforeMain)
+            self.socket:sock.socket=sock.socket(sock.AF_INET, sock.SOCK_STREAM)
+            self.socket.bind((host, port))
+            self.listenerThread:Thread=Thread(target=self.socketListener)
+            self.listenerThread.start()
 
-def launchServer():
-    global thread, serverAlive, sayToServerState
-    serverAlive=not(serverAlive)
-    launchServerButton.configure(text=serverStateList[serverAlive])
-    if serverAlive:
-        sayToServerState=[]
-        thread=threading.Thread(target=Server, args=(serverPort.get(), commands, clientsList, messages, sayToServerState))
-        thread.start()
-    else:
-        sayToServerState.append([])
+            self.connected=True
+            print(f"Server started on {host}:{port}")
 
-def sendCommand():
-    commands.append(commandToSend.get())
-    commandToSend.set("")
+            return True
+        else:
 
-def writeNewLine(toWrite):
-    messagesTB.configure(state="normal")
-    messagesTB.insert("end", str(toWrite)+"\n")
-    messagesTB.configure(state="disabled")
+            self.socket.close()
+            self.connected=False
+            print("Server stopped")
 
-def beforeMain():
-    print(time.time())
-    """while messages!=[]:
-        a=messages.pop(0).split("§")
-        if a[0]=="1":
-            mTime=time.localtime(int(a[3]))
-            b=f"{mTime.tm_mday}/{mTime.tm_mon} {mTime.tm_hour}:{mTime.tm_min}:{mTime.tm_sec}"
-            c=f"<{b}>[{a[1]}] {a[2]}"
-            writeNewLine(c)"""
-    window.after(1, beforeMain)
+            return True
+    
+    def socketListener(self):
+        self.socket.listen(5)
+        try :
+            while True:
+                conn, addr=self.socket.accept()
+                self.connectedUsers.append(User(conn, addr, self.receivedMessagesQueue))
+        except OSError as e:
+            if e.errno != 10038:
+                raise e
 
-serverAlive=False
-serverStateList=["Launch Server", "Shutdown Server"]
-clientsList=[]
-messages=[]
-commands=[]
-sayToServerState=[]
 
-window=tk.CTk()
+class User:
+    def __init__(self, socket, address, receivedMessagesQueue):
+        self.socket:sock.socket=socket
+        self.address=address
+
+        print(f"New user : {self.address}")
+        
+        self.receivedMessagesQueue:Queue=receivedMessagesQueue
+
+        self.listenerThread:Thread=Thread(target=self.socketListener)
+        self.listenerThread.start()
+    
+    def socketListener(self):
+        self.alive=True
+        import sys
+        while self.alive:
+            data=self.socket.recv(1024)
+            self.receivedMessagesQueue.put((self, data.decode("utf-8")))
+            self.alive=data!=b""
+
+
+def getAllAddresses():
+    addressesList=[]
+    for interface in interfaces():
+        if sock.AF_INET in ifaddresses(interface):
+            for link in ifaddresses(interface)[sock.AF_INET]:
+                addressesList.append(link["addr"])
+    return ["0.0.0.0"]+addressesList
+
+def toggleServer():
+    if server.toggleSocket():
+        if server.connected: 
+            toggleServerButton.configure(text="Stop Server")
+            window.after(int(1000/UPS), update)
+        else: 
+            toggleServerButton.configure(text="Start Server")
+
+def update():
+    server.update()
+
+    if not newMessagesQueue.empty():
+        chatTextBox.configure(state="normal")
+        while not newMessagesQueue.empty():
+            msg=newMessagesQueue.get()
+            chatTextBox.insert("end", msg+"\n")
+        chatTextBox.configure(state="disabled")
+
+    if server.connected:
+        window.after(int(1000/UPS), update)
+
+def closeWindow():
+    if server.connected:
+        server.toggleSocket()
+    
+    window.destroy()
+
+
+server=Server()
+
+
+window=ctk.CTk()
+window.iconbitmap("data/dicsord.ico")
 window.title("Dicsord Server")
 window.geometry("800x800")
-window.iconbitmap("data/dicsord.ico")
+window.protocol("WM_DELETE_WINDOW", closeWindow)
 
-window.rowconfigure(0, weight=1)
-window.columnconfigure(0, weight=1)
-optionsFrame = tk.CTkFrame(window)
-MessagesFont=tk.CTkFont("Alef", 17)
-window.bind("<KeyRelease>", keyPressed)
+window.rowconfigure(0,weight=1)
+window.columnconfigure(0,weight=1)
 
-adress=tk.CTkLabel(optionsFrame, text="Server adress: ").grid(row=0, column=0)
-serverAdress=tk.CTkLabel(optionsFrame, text=str(socket.gethostbyname(socket.gethostname()))).grid(row=1, column=0)
-serverPort=tk.StringVar()
-serverPort.set(1234)
-serverPortLabel=tk.CTkLabel(optionsFrame, text="Server port: ").grid(row=2, column=0)
-serverPortEntry=tk.CTkEntry(optionsFrame, textvariable=serverPort).grid(row=3, column=0)
-launchServerButton=tk.CTkButton(optionsFrame, text=serverStateList[0], command=launchServer)
-launchServerButton.grid(row=4, column=0, pady=10)
 
-messagesTB = tk.CTkTextbox(window, state="disabled", font=MessagesFont)
-messagesTB.grid(row=0, column=0, rowspan=2, sticky="nswe")
-clients = tk.CTkTextbox(window, state="disabled", font=MessagesFont)
-clients.grid(row=0, column=1, sticky="nse")
+chatTextBox=ctk.CTkTextbox(window, state="disabled")
+chatTextBox.grid(row=0, column=0, sticky="nswe")
 
-commandToSend=tk.StringVar()
-sendCommandEntry= tk.CTkEntry(window, textvariable=commandToSend).grid(row=2, column=0, columnspan=2, sticky="we")
-sendCommandButton = tk.CTkButton(window, text="Send command", command=sendCommand).grid(row=2, column=2, sticky="we")
+messageTextBox=ctk.CTkTextbox(window, height=50)
+messageTextBox.grid(row=1,column=0, sticky="nswe")
 
-optionsFrame.grid(row=0, column=2, sticky="nse")
-beforeMain()
+sendMessageButton=ctk.CTkButton(window, text="Send")
+sendMessageButton.grid(row=1, column=1, sticky="nswe")
+
+
+settingsFrame=ctk.CTkFrame(window)
+settingsFrame.grid(row=0, column=1, sticky="nswe")
+
+addressLabel=ctk.CTkLabel(settingsFrame, text="Hosting address :")
+addressLabel.pack()
+
+addressComboBox=ctk.CTkComboBox(settingsFrame, values=getAllAddresses())
+addressComboBox.pack()
+
+portLabel=ctk.CTkLabel(settingsFrame, text="Hosting port :")
+portLabel.pack()
+
+portEntry=ctk.CTkEntry(settingsFrame, placeholder_text="8888")
+portEntry.pack()
+
+toggleServerButton=ctk.CTkButton(settingsFrame, text="Start Server", command=toggleServer)
+toggleServerButton.pack(pady=10)
+
+
+
 window.mainloop()
-sayToServerState.append([])

@@ -1,137 +1,141 @@
-import customtkinter as tk
-import socket, threading, time
+import socket as sock
+import customtkinter as ctk
+from queue import Queue
+from re import compile
 
-def client(infos, commands, messages, amIAlive):
-    adress=infos[0]
-    port=infos[1]
-    pseudo=infos[2]
+"""
+a="coucou les lapinsou !".encode("utf-8")
 
-    sock=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((adress, port))
+socket=sock.socket(sock.AF_INET, sock.SOCK_STREAM)
+socket.connect(("127.0.0.1",8888))
 
-    print("client started")
+import sys
+b=socket.send(a)
+print(sys.getsizeof(a)-33, b)
 
-    isAlive=amIAlive
-    connectionAlive=[]
-    isWaitingForNewMessage=False
-    newMessages=[]
-    while isAlive==[] and connectionAlive==[]:
-        while newMessages!=[]:
-            a=newMessages.pop(0)
-            messages.append(a)
-            isWaitingForNewMessage=False
-        if isWaitingForNewMessage==False:
-            isWaitingForNewMessage=True
-            threading._start_new_thread(newMessageListener, (sock, newMessages, connectionAlive))
-        while commands!=[]:
-            a=commands.pop(0)
-            commandsHandler(sock, a)
-        
-        time.sleep(0.1)
+socket.close()"""
 
-def newMessageListener(sock, newMessages, connectionAlive):
-        print("waiting for new message")
-        try: 
-            response=sock.recv(1023).decode("utf-8")
-            newMessages.append(response)
-            print(response)
-        except socket.error:
-            print("connection cutted")
-            connectionAlive.append([])
+IP_REGEX=compile(r"^(((?!25?[6-9])[12]\d|[1-9])?\d\.?\b){4}$")
+PORT_REGEX=compile("^[0-9]{,5}$")
+UPS:float=10
 
-def commandsHandler(sock, command):
-    if command[0]=="/" and len(command)>1:
-        a=command[1:].split(" ")[0]
-        print("a command has been typed:", a)
-        if a=="pseudos":
-            a="§".join(["1",command,str(round(time.time()))])
-            sock.send(a.encode("utf-8"))
-    else:
-        try: 
-            a="§".join(["1",command,str(round(time.time()))])
-            sock.send(a.encode("utf-8"))
-            print(a, "has been sent")
-        except: print("an error has occured while sending the message")
+newMessagesQueue=Queue()
+
+class Client():
+    def __init__(self):
+        self.connected:bool=False
+
+        self.receivedMessagesQueue:Queue=Queue()
+
+    def update(self):
+        pass
+
+    def toggleSocket(self):
+        if self.connected==False:
+            host=addressEntry.get()
+            if host=="": host="127.0.0.1"
+            if not IP_REGEX.match(host): return "a"
+
+            port=portEntry.get()
+            if not PORT_REGEX.match(port): return "b"
+            if port=="": port=8888
+            else: port=int(port)
+            if port > 65365 or port <= 1024: return "c"
+
+            self.socket=sock.socket(sock.AF_INET, sock.SOCK_STREAM)
+            try:
+                self.socket.connect((host, port))
+            except OSError as e:
+                if e.errno==10061:
+                    chatTextBox.configure(state="normal")
+                    chatTextBox.insert("end", "[ERROR]: No connection could be made because the target machine actively refused it.\n")
+                    chatTextBox.tag_add("errorMessageTag", chatTextBox.index("end"+"-2l"), chatTextBox.index("end"+"-1c"))
+                    chatTextBox.configure(state="disabled")
+                    
+                    return False
+                else:
+                    raise e
+
+            self.connected=True
+            print(f"Connected to server {host}:{port}")
+
+            return True
 
 
-def keyPressed(key):
-    if key.char=="\r" or key.char=="\n":
-        sendMessage()
 
-def connectToServer():
-    global thread, clientAlive, sayToClientState
-    clientAlive=not(clientAlive)
-    connectButton.configure(text=connectStateList[clientAlive])
-    if clientAlive:
-        sayToClientState=[]
-        thread=threading.Thread(target=client, args=((serverAdress.get(), int(serverPort.get()), userPseudo.get()), commands, messages, sayToClientState))
-        thread.start()
-    else:
-        sayToClientState.append([])
 
-def sendMessage():
-    if messageToSend.get()!="": 
-        commands.append(messageToSend.get())
-        messageToSend.set("")
 
-def writeNewLine(toWrite):
-    messagesTB.configure(state="normal")
-    messagesTB.insert("end", str(toWrite)+"\n")
-    messagesTB.configure(state="disabled")
 
-def beforeMain():
-    while messages!=[]:
-        a=messages.pop(0).split("§")
-        if a[0]=="1":
-            mTime=time.localtime(int(a[3]))
-            b=f"{mTime.tm_mday}/{mTime.tm_mon} {mTime.tm_hour}:{mTime.tm_min}:{mTime.tm_sec}"
-            c=f"<{b}>[{a[1]}] {a[2]}"
-            writeNewLine(c)
+def toggleClient():
+    if client.toggleSocket():
+        if client.connected: 
+            toggleClientButton.configure(text="Stop Client")
+            window.after(int(1000/UPS), update)
+        else: 
+            toggleClientButton.configure(text="Start Client")
 
-    window.after(1, beforeMain)
+def update():
+    client.update()
 
-clientAlive=False
-connectStateList=["Connect to Server", "Disconnect from Server"]
-messages=[]
-commands=[]
-sayToClientState=[]
+    if not newMessagesQueue.empty():
+        chatTextBox.configure(state="normal")
+        while not newMessagesQueue.empty():
+            msg=newMessagesQueue.get()
+            chatTextBox.insert("end", msg+"\n")
+        chatTextBox.configure(state="disabled")
 
-window=tk.CTk()
-window.geometry("850x800")
-window.title("dicsord")
-#window.iconbitmap("data/dicsord.ico")
-window.resizable=(0,0)
+    if client.connected:
+        window.after(int(1000/UPS), update)
 
-window.rowconfigure(0, weight=1)
-window.columnconfigure(0, weight=1)
-optionsFrame = tk.CTkFrame(window)
-MessagesFont=tk.CTkFont("Alef", 17)
-window.bind("<KeyRelease>", keyPressed)
+def closeWindow():
+    if client.connected:
+        client.toggleSocket()
+    
+    window.destroy()
 
-adressLabel=tk.CTkLabel(optionsFrame, text="Server adress: ").grid(row=0, column=0, padx=10)
-serverAdress=tk.StringVar()
-serverAdress.set("localhost")
-adressEntry=tk.CTkEntry(optionsFrame, textvariable=serverAdress).grid(row=1, column=0)
-portLabel=tk.CTkLabel(optionsFrame, text="Server port: ").grid(row=3, column=0, padx=10)
-serverPort=tk.StringVar()
-serverPort.set(1234)
-portEntry=tk.CTkEntry(optionsFrame, textvariable=serverPort).grid(row=4, column=0)
-pseudoLabel=tk.CTkLabel(optionsFrame, text="pseudo: ").grid(row=5, column=0, padx=10)
-userPseudo=tk.StringVar()
-pseudoEntry=tk.CTkEntry(optionsFrame, textvariable=userPseudo).grid(row=6, column=0)
-connectButton=tk.CTkButton(optionsFrame, text=connectStateList[clientAlive], command=connectToServer)
-connectButton.grid(row=7, column=0, padx=10, pady=10)
 
-messagesTB = tk.CTkTextbox(window, state="disabled", font=MessagesFont)
-messagesTB.grid(row=0, column=0, sticky="nswe")
-clients = tk.CTkTextbox(window, state="disabled", font=MessagesFont)
-clients.grid(row=0, column=1, sticky="nse")
+client=Client()
 
-messageToSend=tk.StringVar()
-sendMessageEntry= tk.CTkEntry(window, textvariable=messageToSend).grid(row=1, column=0, columnspan=2, sticky="we")
-sendMessageButton = tk.CTkButton(window, text="Send", command=sendMessage).grid(row=1, column=2, sticky="we")
 
-optionsFrame.grid(row=0, column=2, sticky="nse")
-beforeMain()
+window=ctk.CTk()
+window.iconbitmap("data/dicsord.ico")
+window.title("Dicsord Client")
+window.geometry("800x800")
+window.protocol("WM_DELETE_WINDOW", closeWindow)
+
+window.rowconfigure(0,weight=1)
+window.columnconfigure(0,weight=1)
+
+
+chatTextBox=ctk.CTkTextbox(window, state="disabled")
+chatTextBox.grid(row=0, column=0, sticky="nswe")
+chatTextBox.tag_config("errorMessageTag", foreground="red")
+
+messageTextBox=ctk.CTkTextbox(window, height=50)
+messageTextBox.grid(row=1,column=0, sticky="nswe")
+
+sendMessageButton=ctk.CTkButton(window, text="Send")
+sendMessageButton.grid(row=1, column=1, sticky="nswe")
+
+
+settingsFrame=ctk.CTkFrame(window)
+settingsFrame.grid(row=0, column=1, sticky="nswe")
+
+addressLabel=ctk.CTkLabel(settingsFrame, text="Server address :")
+addressLabel.pack()
+
+addressEntry=ctk.CTkEntry(settingsFrame, placeholder_text="127.0.0.1")
+addressEntry.pack()
+
+portLabel=ctk.CTkLabel(settingsFrame, text="Server port :")
+portLabel.pack()
+
+portEntry=ctk.CTkEntry(settingsFrame, placeholder_text="8888")
+portEntry.pack()
+
+toggleClientButton=ctk.CTkButton(settingsFrame, text="Start Client", command=toggleClient)
+toggleClientButton.pack(pady=10)
+
+
+
 window.mainloop()
-sayToClientState.append([])
