@@ -27,6 +27,15 @@ class Client():
 
         self.receivedMessagesQueue:Queue=Queue()
 
+    def sendMessage(self, msg:str):
+        try:
+            self.socket.send(msg.encode("utf-8"))
+
+            return True
+        except OSError as e:
+            print(e, e.errno)
+            return False
+
     def update(self):
         pass
 
@@ -47,10 +56,7 @@ class Client():
                 self.socket.connect((host, port))
             except OSError as e:
                 if e.errno==10061:
-                    chatTextBox.configure(state="normal")
-                    chatTextBox.insert("end", "[ERROR]: No connection could be made because the target machine actively refused it.\n")
-                    chatTextBox.tag_add("errorMessageTag", chatTextBox.index("end"+"-2l"), chatTextBox.index("end"+"-1c"))
-                    chatTextBox.configure(state="disabled")
+                    writeError("[ERROR]: No connection could be made because the target machine actively refused it.")
                     
                     return False
                 else:
@@ -64,7 +70,11 @@ class Client():
 
 
 
-
+def writeError(msg):
+    chatTextBox.configure(state="normal")
+    chatTextBox.insert("end", msg+"\n")
+    chatTextBox.tag_add("errorMessageTag", chatTextBox.index("end"+"-2l"), chatTextBox.index("end"+"-1c"))
+    chatTextBox.configure(state="disabled")
 
 def toggleClient():
     if client.toggleSocket():
@@ -93,6 +103,23 @@ def closeWindow():
     
     window.destroy()
 
+def sendMessage():
+    msg=messageTextBox.get("0.0", "end").rstrip()
+    print([msg])
+
+
+    if client.connected: 
+        if client.sendMessage(msg):
+            messageTextBox.delete("0.0", "end")
+    else:
+        writeError("Connect to server before sending message.")
+        messageTextBox.delete(messageTextBox.index("end"+"-1c"), "end")
+
+def handleEnter(event):
+    if event.state&4 == 0:
+        sendMessage()
+
+
 
 client=Client()
 
@@ -102,6 +129,7 @@ window.iconbitmap("data/dicsord.ico")
 window.title("Dicsord Client")
 window.geometry("800x800")
 window.protocol("WM_DELETE_WINDOW", closeWindow)
+window.bind("<Return>", handleEnter)
 
 window.rowconfigure(0,weight=1)
 window.columnconfigure(0,weight=1)
@@ -114,7 +142,7 @@ chatTextBox.tag_config("errorMessageTag", foreground="red")
 messageTextBox=ctk.CTkTextbox(window, height=50)
 messageTextBox.grid(row=1,column=0, sticky="nswe")
 
-sendMessageButton=ctk.CTkButton(window, text="Send")
+sendMessageButton=ctk.CTkButton(window, text="Send", command=sendMessage)
 sendMessageButton.grid(row=1, column=1, sticky="nswe")
 
 
