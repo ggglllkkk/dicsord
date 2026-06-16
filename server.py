@@ -5,9 +5,13 @@ from threading import Thread
 from netifaces import interfaces, ifaddresses
 from queue import Queue
 from re import compile
+from time import time
+from datetime import datetime
 
 PORT_REGEX=compile("^[0-9]{,5}$")
 UPS:float=10
+ADDRESS_FORMAT="{:0=3}"
+PORT_FORMAT="{:0=5}"
 
 newMessagesQueue:Queue=Queue()
 
@@ -17,16 +21,48 @@ class Server:
 
         self.connectedUsers:list[User]=[]
         self.receivedMessagesQueue:Queue=Queue()
+        self.disconnectedUsers:Queue=Queue()
+        self.messageHistory=[]
+        self.usernameDictionnary={}
+        self.usernameCountDictionnary={}
     
     def update(self):
         while not self.receivedMessagesQueue.empty():
             currentMsg=self.receivedMessagesQueue.get()
             if currentMsg[1]=="":
-                self.connectedUsers.remove(currentMsg[0])
+                self.disconnectedUsers.put(currentMsg[0])
             else:
-                print(currentMsg[1])
-                newMessagesQueue.put(currentMsg[1])
+                newMessagesQueue.put(currentMsg)
+                self.messageHistory.append(currentMsg)
+                self.sendAll(currentMsg)
+
+                if currentMsg[1][0]==0:
+                    if not currentMsg[1][2] in self.usernameCountDictionnary.keys():
+                        self.usernameCountDictionnary[currentMsg[1][2]]=0
+                        self.usernameDictionnary[currentMsg[0].getFormattedAddress()]=currentMsg[1][2]
+                    else:
+                        self.usernameCountDictionnary[currentMsg[1][2]]+=1
+                        self.usernameDictionnary[currentMsg[0].getFormattedAddress()]=currentMsg[1][2]+f"({self.usernameCountDictionnary[currentMsg[1][2]]})"
         
+        self.removeUsers()
+    
+    def sendAll(self, message):
+        for user in self.connectedUsers:
+            try:
+                newMessage=f"{message[1][0]}{message[0].getFormattedAddress()}{message[1][1]}{message[1][2]}"
+                print(newMessage)
+                user.sendMessage(newMessage)
+            except OSError as e:
+                if e.errno == 10054:
+                    self.disconnectedUsers.put(user)
+                else:
+                    print(e)
+        print("message sent")
+    
+    def removeUsers(self):
+        while not self.disconnectedUsers.empty():
+            currentUser=self.disconnectedUsers.get()
+            self.connectedUsers.remove(currentUser)
     
     def toggleSocket(self):
         if self.connected==False:
@@ -78,13 +114,28 @@ class User:
         self.listenerThread:Thread=Thread(target=self.socketListener)
         self.listenerThread.start()
     
+    def getFormattedAddress(self):
+        formattedAddress=self.address[0].split(".")
+        formattedAddress=".".join([ADDRESS_FORMAT.format(int(k)) for k in formattedAddress])
+        return formattedAddress+":"+PORT_FORMAT.format(self.address[1])
+    
     def socketListener(self):
         self.alive=True
-        import sys
         while self.alive:
-            data=self.socket.recv(1024)
-            self.receivedMessagesQueue.put((self, data.decode("utf-8")))
-            self.alive=data!=b""
+            try:
+                data=self.socket.recv(1024)
+                message=data.decode("utf-8")
+                message=(int(message[0]), int(message[1:11]), message[11:])
+                self.receivedMessagesQueue.put((self, message))
+                self.alive=data!=b""
+            except OSError as e:
+                if e.errno == 10054:
+                    self.alive=False
+                else:
+                    print(e)
+    
+    def sendMessage(self, message):
+        self.socket.send(message.encode("utf-8"))
 
 
 def getAllAddresses():
@@ -110,7 +161,9 @@ def update():
         chatTextBox.configure(state="normal")
         while not newMessagesQueue.empty():
             msg=newMessagesQueue.get()
-            chatTextBox.insert("end", msg+"\n")
+            
+            if msg[1][0]==1:
+                chatTextBox.insert("end", f"{server.usernameDictionnary[msg[0].getFormattedAddress()]}: {msg[1][2]}\n")
         chatTextBox.configure(state="disabled")
 
     if server.connected:

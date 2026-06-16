@@ -1,0 +1,19 @@
+
+
+To clients : 
+
+[Mode][Sender][Time of sending][Data]
+
+Mode:
+    0-New user to register
+    1-New message received
+
+
+
+To server :
+
+[Mode][Time of sending][Data]
+
+Mode:
+    0-Username
+    1-Message
